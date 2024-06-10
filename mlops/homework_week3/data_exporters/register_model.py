@@ -1,50 +1,43 @@
 import mlflow
-from mlflow.tracking import MlflowClient
-from mlflow.entities import ViewType
-import subprocess
+import mlflow.sklearn
+import pickle
+import os
 
 MLFLOW_TRACKING_URI = "http://mlflow:5000"
 
-# Start MLflow UI
-subprocess.Popen(["mlflow", "ui", "--backend-store-uri", MLFLOW_TRACKING_URI], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+# Set MLflow tracking URI
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 mlflow.set_experiment("homework3")
 
+# Enable autologging
 mlflow.sklearn.autolog(log_datasets=False)
-
-client = MlflowClient(tracking_uri=MLFLOW_TRACKING_URI)
 
 if 'data_exporter' not in globals():
     from mage_ai.data_preparation.decorators import data_exporter
 
 @data_exporter
 def export_data(data, *args, **kwargs):
-    # Initialize MLflow client
-    client = MlflowClient()
+    lr, dv = data
 
-    # List all experiments
-    experiments = client.list_experiments()
+    with mlflow.start_run() as run:
+        # Log the intercept as a metric
+        intercept = lr.intercept_
+        mlflow.log_metric("intercept", intercept)
+        print("Intercept:", intercept)
 
-    # Find the experiment ID for the given experiment name
-    experiment_id = next((exp.experiment_id for exp in experiments if exp.name == EXPERIMENT_NAME), None)
+        # Log the linear regression model
+        mlflow.sklearn.log_model(lr, artifact_path="model")
 
-    # List all runs in the experiment
-    runs = client.list_run_infos(experiment_id)
+        # Save and log the DictVectorizer
+        dv_path = "dict_vectorizer.pkl"
+        with open(dv_path, 'wb') as f:
+            pickle.dump(dv, f)
+        mlflow.log_artifact(dv_path, artifact_path="preprocessors")
+        
+        # Clean up
+        os.remove(dv_path)
+        
+        print(f"Model and DictVectorizer logged with run_id: {run.info.run_id}")
 
-    # Get the latest run
-    latest_run = runs[0]
-
-    # Get the run ID
-    run_id = latest_run.run_id
-
-    # Retrieve the model artifacts
-    artifacts = client.list_artifacts(run_id, "model")
-
-    # Find the MLModel file
-    mlmodel_file_info = next((artifact for artifact in artifacts if artifact.path.endswith("MLmodel")), None)
-
-    # Retrieve the model size
-    model_size_bytes = mlmodel_file_info.file_size
-    print(f"Model size (bytes): {model_size_bytes}")
-
-    return model_size_bytes
+if name == 'main':
+    export_data()
