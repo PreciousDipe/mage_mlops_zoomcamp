@@ -1,0 +1,7 @@
+homework3:
+  object_type: pipeline
+  object_uuid: data_preparation
+  project: homework_week3
+  repo_path: /home/src/mlops/homework_week3
+  settings:
+    ingest: {}
